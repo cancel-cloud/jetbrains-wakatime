@@ -15,6 +15,8 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.UUID;
 
 public class Settings extends DialogWrapper {
@@ -27,6 +29,10 @@ public class Settings extends DialogWrapper {
     private final JCheckBox debug;
     private final JLabel statusBarLabel;
     private final JCheckBox statusBar;
+    private final JLabel offlineModeLabel;
+    private final JCheckBox offlineMode;
+    private final JLabel pushDataLabel;
+    private final JButton pushDataButton;
 
     public Settings(@Nullable Project project) {
         super(project, true);
@@ -63,7 +69,51 @@ public class Settings extends DialogWrapper {
         debug.setSelected(debugValue != null && debugValue.trim().toLowerCase().equals("true"));
         panel.add(debug);
 
+        offlineModeLabel = new JLabel("Offline Mode (save locally):", JLabel.CENTER);
+        panel.add(offlineModeLabel);
+        String offlineModeValue = ConfigFile.get("settings", "offline_mode", false);
+        offlineMode = new JCheckBox();
+        offlineMode.setSelected(offlineModeValue != null && offlineModeValue.trim().toLowerCase().equals("true"));
+        panel.add(offlineMode);
+
+        pushDataLabel = new JLabel("Push stored data:", JLabel.CENTER);
+        panel.add(pushDataLabel);
+        pushDataButton = new JButton("Push Now");
+        pushDataButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                pushStoredData();
+            }
+        });
+        panel.add(pushDataButton);
+
         init();
+    }
+
+    private void pushStoredData() {
+        // Check if offline mode is enabled
+        String offlineModeValue = ConfigFile.get("settings", "offline_mode", false);
+        boolean isOfflineMode = offlineModeValue != null && offlineModeValue.trim().toLowerCase().equals("true");
+        
+        if (!isOfflineMode) {
+            JOptionPane.showMessageDialog(panel, "Offline mode is not enabled. Enable it first to use local storage.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        int count = LocalDatabase.getHeartbeatCount();
+        if (count == 0) {
+            JOptionPane.showMessageDialog(panel, "No stored data to push.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        int result = JOptionPane.showConfirmDialog(panel, 
+            "Push " + count + " stored heartbeats to WakaTime?", 
+            "Confirm Push", 
+            JOptionPane.YES_NO_OPTION);
+        
+        if (result == JOptionPane.YES_OPTION) {
+            WakaTime.pushStoredHeartbeats();
+        }
     }
 
     @Nullable
@@ -88,6 +138,7 @@ public class Settings extends DialogWrapper {
         ConfigFile.set("settings", "proxy", false, proxy.getText());
         ConfigFile.set("settings", "debug", false, debug.isSelected() ? "true" : "false");
         ConfigFile.set("settings", "status_bar_enabled", false, statusBar.isSelected() ? "true" : "false");
+        ConfigFile.set("settings", "offline_mode", false, offlineMode.isSelected() ? "true" : "false");
         WakaTime.setupConfigs();
         WakaTime.setupStatusBar();
         WakaTime.setLoggingLevel();

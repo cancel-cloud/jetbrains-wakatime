@@ -1,7 +1,7 @@
 <idea-plugin version="2" url="https://wakatime.com" require-restart="true">
     <id>com.wakatime.intellij.plugin</id>
     <name>WakaTime</name>
-    <version>15.0.4</version>
+    <version>15.1.0</version>
     <vendor email="support@wakatime.com" url="https://wakatime.com">WakaTime</vendor>
 
     <description><![CDATA[
@@ -27,6 +27,16 @@
     ]]></description>
 
     <change-notes><![CDATA[
+15.1.0 (2026-01-31)<br />
+++++++++++++++++++<br />
+<br />
+- Add offline mode for local SQLite storage of heartbeats.<br />
+- Save coding activity locally in ~/Developer/wakatime_heartbeats.db.<br />
+- Manual push button in Settings to upload stored data.<br />
+- 7-day reminder notification when data hasn't been pushed.<br />
+- Full control over when data is sent to WakaTime servers.<br />
+<br />
+<br />
 15.0.4 (2025-05-30)<br />
 ++++++++++++++++++<br />
 <br />

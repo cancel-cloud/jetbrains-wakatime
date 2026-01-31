@@ -49,6 +49,15 @@ WakaTime for Jetbrains IDE's can be configured via Tools → WakaTime Settings.
 
 For more settings, WakaTime plugins share a common config file `.wakatime.cfg` located in your user home directory with [these options](https://github.com/wakatime/wakatime-cli/blob/develop/USAGE.md) available.
 
+### Offline Mode
+
+WakaTime now supports an offline mode where coding activity is saved locally in an SQLite database and pushed to the server on demand. This is useful for privacy-conscious users or those with limited internet connectivity.
+
+See [OFFLINE_MODE.md](./OFFLINE_MODE.md) for detailed documentation on:
+- Enabling offline mode
+- Manual data push
+- 7-day reminder notifications
+- Local database management
 
 ## Uninstalling
 

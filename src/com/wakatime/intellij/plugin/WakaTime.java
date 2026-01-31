@@ -909,11 +909,13 @@ public class WakaTime implements ApplicationComponent {
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e) {
-                        warnException((Exception) e);
+                        warnException(e);
                     }
                 }
                 
                 // Clear the database after successful push
+                // Note: We trust wakatime-cli to handle failures and retries
+                // The CLI has its own offline queue for failed uploads
                 LocalDatabase.clearAllHeartbeats();
                 
                 // Update last push timestamp

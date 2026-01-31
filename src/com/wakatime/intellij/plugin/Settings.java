@@ -91,6 +91,15 @@ public class Settings extends DialogWrapper {
     }
 
     private void pushStoredData() {
+        // Check if offline mode is enabled
+        String offlineModeValue = ConfigFile.get("settings", "offline_mode", false);
+        boolean isOfflineMode = offlineModeValue != null && offlineModeValue.trim().toLowerCase().equals("true");
+        
+        if (!isOfflineMode) {
+            JOptionPane.showMessageDialog(panel, "Offline mode is not enabled. Enable it first to use local storage.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
         int count = LocalDatabase.getHeartbeatCount();
         if (count == 0) {
             JOptionPane.showMessageDialog(panel, "No stored data to push.", "Info", JOptionPane.INFORMATION_MESSAGE);

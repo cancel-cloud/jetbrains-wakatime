@@ -61,9 +61,6 @@ public class LocalDatabase {
      */
     public static synchronized void initialize() {
         try {
-            // Load SQLite JDBC driver
-            Class.forName("org.sqlite.JDBC");
-            
             String path = getDbPath();
             connection = DriverManager.getConnection("jdbc:sqlite:" + path);
             
@@ -71,8 +68,6 @@ public class LocalDatabase {
             createTable();
             
             WakaTime.log.info("Local database initialized successfully");
-        } catch (ClassNotFoundException e) {
-            WakaTime.log.error("SQLite JDBC driver not found. Please ensure sqlite-jdbc is in classpath.", e);
         } catch (SQLException e) {
             WakaTime.log.error("Failed to initialize local database", e);
         }

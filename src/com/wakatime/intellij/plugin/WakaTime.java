@@ -64,6 +64,7 @@ public class WakaTime implements ApplicationComponent {
     public static Boolean DEBUG_CHECKED = false;
     public static Boolean STATUS_BAR = false;
     public static Boolean READY = false;
+    public static Boolean OFFLINE_MODE = false;
     public static String lastFile = null;
     public static BigDecimal lastTime = new BigDecimal(0);
     public static Boolean isBuilding = false;
@@ -99,6 +100,14 @@ public class WakaTime implements ApplicationComponent {
         checkCli();
         setupEventListeners();
         setupQueueProcessor();
+        
+        // Initialize local database if offline mode is enabled
+        if (OFFLINE_MODE) {
+            LocalDatabase.initialize();
+        }
+        
+        // Check if 7 days have passed since last push
+        check7DayNotification();
     }
 
     private void checkCli() {
@@ -190,6 +199,11 @@ public class WakaTime implements ApplicationComponent {
 
         // make sure to send all heartbeats before exiting
         processHeartbeatQueue();
+        
+        // Close database connection if offline mode is enabled
+        if (OFFLINE_MODE) {
+            LocalDatabase.close();
+        }
     }
 
     public static void checkApiKey() {
@@ -307,6 +321,16 @@ public class WakaTime implements ApplicationComponent {
             if (h == null)
                 break;
             extraHeartbeats.add(h);
+        }
+
+        // If offline mode is enabled, save to database instead of sending
+        if (WakaTime.OFFLINE_MODE) {
+            LocalDatabase.insertHeartbeat(heartbeat);
+            for (Heartbeat h : extraHeartbeats) {
+                LocalDatabase.insertHeartbeat(h);
+            }
+            log.debug("Saved " + (1 + extraHeartbeats.size()) + " heartbeats to local database");
+            return;
         }
 
         sendHeartbeat(heartbeat, extraHeartbeats);
@@ -569,6 +593,13 @@ public class WakaTime implements ApplicationComponent {
         WakaTime.DEBUG = debug != null && debug.trim().equals("true");
         String metrics = ConfigFile.get("settings", "metrics", false);
         WakaTime.METRICS = metrics != null && metrics.trim().equals("true");
+        String offlineMode = ConfigFile.get("settings", "offline_mode", false);
+        WakaTime.OFFLINE_MODE = offlineMode != null && offlineMode.trim().equals("true");
+        
+        // Initialize database if offline mode is enabled
+        if (WakaTime.OFFLINE_MODE) {
+            LocalDatabase.initialize();
+        }
     }
 
     public static void setupStatusBar() {
@@ -843,6 +874,108 @@ public class WakaTime implements ApplicationComponent {
         e.printStackTrace(new PrintWriter(sw));
         String str = e.getMessage() + "\n" + sw.toString();
         log.error(str);
+    }
+
+    /**
+     * Push all stored heartbeats from local database to WakaTime API
+     */
+    public static void pushStoredHeartbeats() {
+        ApplicationManager.getApplication().executeOnPooledThread(new Runnable() {
+            public void run() {
+                ArrayList<Heartbeat> heartbeats = LocalDatabase.getAllHeartbeats();
+                
+                if (heartbeats.isEmpty()) {
+                    log.info("No stored heartbeats to push");
+                    return;
+                }
+                
+                log.info("Pushing " + heartbeats.size() + " stored heartbeats to WakaTime");
+                
+                // Send heartbeats in batches of 100
+                int batchSize = 100;
+                int totalSent = 0;
+                
+                for (int i = 0; i < heartbeats.size(); i += batchSize) {
+                    int end = Math.min(i + batchSize, heartbeats.size());
+                    ArrayList<Heartbeat> batch = new ArrayList<>(heartbeats.subList(i, end));
+                    
+                    if (!batch.isEmpty()) {
+                        Heartbeat firstHeartbeat = batch.remove(0);
+                        sendHeartbeat(firstHeartbeat, batch);
+                        totalSent += (batch.size() + 1);
+                    }
+                    
+                    // Small delay between batches to avoid overwhelming the API
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        warnException((Exception) e);
+                    }
+                }
+                
+                // Clear the database after successful push
+                LocalDatabase.clearAllHeartbeats();
+                
+                // Update last push timestamp
+                ConfigFile.set("settings", "last_push_timestamp", false, String.valueOf(System.currentTimeMillis()));
+                
+                log.info("Successfully pushed " + totalSent + " heartbeats");
+                
+                // Show success notification
+                ApplicationManager.getApplication().invokeLater(new Runnable() {
+                    public void run() {
+                        Messages.showInfoMessage("Successfully pushed " + totalSent + " heartbeats to WakaTime", "Push Complete");
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * Check if 7 days have passed since last push and show notification
+     */
+    private static void check7DayNotification() {
+        if (!WakaTime.OFFLINE_MODE) {
+            return;
+        }
+        
+        String lastPushStr = ConfigFile.get("settings", "last_push_timestamp", false);
+        long lastPushTime = 0;
+        
+        if (lastPushStr != null && !lastPushStr.trim().isEmpty()) {
+            try {
+                lastPushTime = Long.parseLong(lastPushStr);
+            } catch (NumberFormatException e) {
+                // Invalid timestamp, treat as never pushed
+                lastPushTime = 0;
+            }
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        long sevenDaysInMillis = 7L * 24L * 60L * 60L * 1000L;
+        
+        if (lastPushTime == 0 || (currentTime - lastPushTime) >= sevenDaysInMillis) {
+            int count = LocalDatabase.getHeartbeatCount();
+            
+            if (count > 0) {
+                ApplicationManager.getApplication().invokeLater(new Runnable() {
+                    public void run() {
+                        int result = Messages.showYesNoDialog(
+                            "You have " + count + " stored heartbeats that haven't been pushed in 7 days.\n" +
+                            "Would you like to push them now?",
+                            "WakaTime: Time to Push Data",
+                            "Push Now",
+                            "Later",
+                            Messages.getQuestionIcon()
+                        );
+                        
+                        if (result == Messages.YES) {
+                            pushStoredHeartbeats();
+                        }
+                    }
+                });
+            }
+        }
     }
 
     @NotNull
